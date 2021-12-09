@@ -1,0 +1,34 @@
+{
+  "files": {
+    "cogs/registration.py": [
+      {
+        "id": "59e27f4f-7675-4b2c-af22-254eec83f984",
+        "line": 134,
+        "version": 5041,
+        "index": 5941
+      }
+    ],
+    "discord2fortnite.py": [
+      {
+        "id": "79ef62fc-15a3-49ae-9c5f-1fc9a28052e1",
+        "line": 2,
+        "version": 748,
+        "index": 21
+      },
+      {
+        "id": "8344e502-1d2e-4800-a93e-8d1bced2296d",
+        "line": 16,
+        "version": 748,
+        "index": 263
+      }
+    ],
+    "fortnite_bot/bot_a.py": [
+      {
+        "id": "27ec2254-ebf2-41a2-938f-d01730a025e8",
+        "line": 43,
+        "version": 988,
+        "index": 967
+      }
+    ]
+  }
+}
