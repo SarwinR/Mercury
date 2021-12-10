@@ -3,9 +3,9 @@
     "cogs/registration.py": [
       {
         "id": "59e27f4f-7675-4b2c-af22-254eec83f984",
-        "line": 134,
-        "version": 5041,
-        "index": 5941
+        "line": 209,
+        "version": 6496,
+        "index": 10843
       }
     ],
     "discord2fortnite.py": [
@@ -25,9 +25,9 @@
     "fortnite_bot/bot_a.py": [
       {
         "id": "27ec2254-ebf2-41a2-938f-d01730a025e8",
-        "line": 43,
-        "version": 988,
-        "index": 967
+        "line": 46,
+        "version": 1117,
+        "index": 1024
       }
     ]
   }

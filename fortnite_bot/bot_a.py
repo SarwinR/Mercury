@@ -80,6 +80,8 @@ async def event_friend_request(request):
     if(str(request.id) == str(user2verify_epic_id) or str(request.display_name) == str(user2verify_epic_id)):
         details = db['detail']
         details['status'] = True
+        details['real_epic_id'] = request.id
+        details['real_display_name'] = request.display_name
         db['detail'] = details
 
     await request.decline()

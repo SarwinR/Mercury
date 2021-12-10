@@ -3,12 +3,13 @@ from discord.ext import commands, tasks
 from discord.ui import Button, View
 import asyncio
 from replit import db
+import database_access as firebase
 
 list_2_send_epic_id = [] #list used to store users that have to send their epic ids
-list_2_verify_account = [] #list used to store users that have to verify the account
+db['list_2_verify_account'] = [] #list used to store users that have to verify the account
 
-registration_message_channel = 918036135421300747
-
+registration_message_channel = 918466005708201984
+registration_log_channel = 918411571804373002
 
 async def send_error_message(message, channel, time):
     error_msg = await channel.send(message)
@@ -19,13 +20,12 @@ async def send_error_message(message, channel, time):
 async def dispatch_bot4registration_process(self):
     
     while (True):
-        global list_2_verify_account
-        if(len(list_2_verify_account) != 0):
-            list_2_verify_account[0]['status'] = False
-            db['detail'] = list_2_verify_account[0]
-            invite_message=discord.Embed(title="**Send Friend Request**", description="Send a friend request to this account ` mercury-a ` using your Fortnite Account with **Epic Account ID / Display Name**: ` {} ` __**within 1 minute**__".format(list_2_verify_account[0]['epic_id']), color=0xfec016)
+        if(len(db['list_2_verify_account']) != 0):
+            db['list_2_verify_account'][0]['status'] = False
+            db['detail'] = db['list_2_verify_account'][0]
+            invite_message=discord.Embed(title="**Send Friend Request**", description="Send a friend request to this account ` mercury-a ` using your Fortnite Account with **Epic Account ID / Display Name**: ` {} ` __**within 1 minute**__".format(db['list_2_verify_account'][0]['epic_id']), color=0xfec016)
             invite_message.set_footer(text="Made ❤ by sarwin.")
-            dm_channel = self.client.get_channel(list_2_verify_account[0]['dm_channel_id'])
+            dm_channel = self.client.get_channel(db['list_2_verify_account'][0]['dm_channel_id'])
             await dm_channel.send(embed=invite_message)
             
             count = 0
@@ -33,25 +33,51 @@ async def dispatch_bot4registration_process(self):
                 count += 1
                 await asyncio.sleep(1)
 
+            log_message = ""
             details = db['detail']
             if(details['status'] == True):
                 status_message=discord.Embed(title="**Successfully Linked Account**", description="These 2 accounts have been linked successfully!", color=0x37ff00)
                 status_message.add_field(name="Discord ID", value=details['discord_user_id'], inline=True)
-                status_message.add_field(name="Epic Account ID / Display Name", value=details['epic_id'], inline=True)
+                status_message.add_field(name="Fortnite Display Name", value=details['real_display_name'], inline=True)
+                status_message.add_field(name="Epic Account ID", value=details['real_epic_id'], inline=False)
                 status_message.set_footer(text="Made ❤ by sarwin.")
+
+                data = {
+                    'epic_id':details['real_epic_id'],
+                    'display_name':details['real_display_name']
+                }
+                firebase.set_link_discord2fortnite(details['discord_user_id'], data)
+
+                user = await self.client.fetch_user(int(details['discord_user_id']))
+                log_message = "{} successfully linked a fortnite account. DisplayName: `{}` Epic_ID: `{}`".format(user.mention , details['real_display_name'], details['real_epic_id'])
+
             else:
                 status_message=discord.Embed(title="**Failed To Link Account**", description="The account linkage process failed. Below are some reasons why it might have failed. Try linking you account again. If the problem persists, contact a staff.", color=0xff0000)
                 status_message.add_field(name="Did Not Invite", value="You did not send a friend request to the bot", inline=False)
                 status_message.add_field(name="Wrong Fortnite Account", value="The Fortnite account you used to send the invite does not match the Epic Account ID you sent", inline=False)
                 status_message.add_field(name="Incorerct Name", value="You might have mistyped your Display Name (Display Name is CaSe SenSItIvE!). If your name consists of weird characters, use your **Epic Account ID** instead", inline=False)
 
-            list_2_verify_account.pop(0)
+                user = await self.client.fetch_user(int(details['discord_user_id']))
+                log_message = "{} tried to link an account with DisplayName / Epic Account ID: `{}` but failed.".format(user.mention , details['epic_id'])
+
+            database = db['list_2_verify_account']
+            database.pop(0)
+            db['list_2_verify_account'] = database
             await dm_channel.send(embed=status_message)
+
+            global registration_log_channel
+            log_channel = self.client.get_channel(registration_log_channel)
+            await log_channel.send(log_message)
 
         await asyncio.sleep(5)
 
 async def start_registration_process(interaction):
     #check if player is already registered
+
+    if(firebase.check_if_already_registered(interaction.user.id)):
+        error_msg = "{} you are already registered!".format(interaction.user.mention)
+        await send_error_message(error_msg, interaction.channel, 10)
+        return
 
     global list_2_send_epic_id
     for entry in list_2_send_epic_id:
@@ -59,7 +85,7 @@ async def start_registration_process(interaction):
             error_msg = "{} you have already requested an account linkage process. Check your DMs.".format(interaction.user.mention)
             await send_error_message(error_msg, interaction.channel, 10)
             return
-    for entry in list_2_verify_account:
+    for entry in db['list_2_verify_account']:
         if(entry['discord_user_id'] == interaction.user.id):
             error_msg = "{} you have already requested an account linkage process. Please wait for the bot to ask you to verify your account. Check DM.".format(interaction.user.mention)
             await send_error_message(error_msg, interaction.channel, 10)
@@ -126,6 +152,7 @@ class Registration(commands.Cog):
     async def on_ready(self):
         print("Registration Module Ready")
 
+        firebase.initialize_database()
         self.send_registration_message.start()
         await dispatch_bot4registration_process(self)
 
@@ -140,16 +167,16 @@ class Registration(commands.Cog):
                 epic_id = message.content.strip()
                 entry['epic_id'] = epic_id
 
-                global list_2_verify_account
-
-                indication_message=discord.Embed(title="**Link Account**", description="These 2 accounts will be linked! You are currently number __**{}**__ in line. \n`_ETA: {} minutes(s)_` \nPlease wait for the bot to send you further instructions. Not responding to the bot will cause the process to fail!".format(len(list_2_verify_account) + 1, len(list_2_verify_account)), color=0xfec016)
+                indication_message=discord.Embed(title="**Link Account**", description="These 2 accounts will be linked! You are currently number __**{}**__ in line. \n`_ETA: {} minutes(s)_` \nPlease wait for the bot to send you further instructions. Not responding to the bot will cause the process to fail!".format(len(db['list_2_verify_account']) + 1, len(db['list_2_verify_account'])), color=0xfec016)
                 indication_message.add_field(name="Discord ID", value=entry['discord_user_id'], inline=True)
                 indication_message.add_field(name="Epic Account ID / Display Name", value=entry['epic_id'], inline=True)
                 indication_message.set_footer(text="Made ❤ by sarwin.")
 
                 await message.channel.send(embed=indication_message)
-
-                list_2_verify_account.append(entry)
+                
+                database = db['list_2_verify_account']
+                database.append(entry)
+                db['list_2_verify_account'] = database
                 list_2_send_epic_id.remove(entry)
                 return
 
@@ -157,15 +184,17 @@ class Registration(commands.Cog):
     async def send_registration_message(self):
         register_button = Button(label='Register', style=discord.ButtonStyle.green)
         epic_id_info = Button(label='How To Get Epic Account ID', url="https://www.epicgames.com/help/en-US/epic-accounts-c74/general-support-c79/what-is-an-epic-account-id-and-where-can-i-find-it-a3659")
+        tutorial_button = Button(label='Video Tutorial', url="https://discord.com/channels/803192609430044693/803582442488987688/918492757306273812")
 
         async def register_button_callback(interaction):
             await start_registration_process(interaction)
 
         register_button.callback = register_button_callback
 
-        view = View()
+        view = View(timeout=None)
         view.add_item(register_button)
         view.add_item(epic_id_info)
+        view.add_item(tutorial_button)
 
         global registration_message_channel
         registration_channel = self.client.get_channel(registration_message_channel)
@@ -174,29 +203,6 @@ class Registration(commands.Cog):
         registration_message=discord.Embed(title="**Link Account**", description="Press the __Register__ button down below to begin the verification process.The bot will send instructions on how to link your account via DMs. Ensure your DM is open.\n\nNote: You will need to provide the bot with your **Epic Account ID** or **Display Name**.", color=0xfec016)
         registration_message.set_footer(text="Made ❤ by sarwin. (This is an early version. Expect errors.)")
         await registration_channel.send(embed=registration_message, view=view)
-
-'''
-async def send_registration_message(self):
-    register_button = Button(label='Register', style=discord.ButtonStyle.green)
-    epic_id_info = Button(label='How To Get Epic Account ID', url="https://www.epicgames.com/help/en-US/epic-accounts-c74/general-support-c79/what-is-an-epic-account-id-and-where-can-i-find-it-a3659")
-
-    async def register_button_callback(interaction):
-        await start_registration_process(interaction)
-
-    register_button.callback = register_button_callback
-
-    view = View()
-    view.add_item(register_button)
-    view.add_item(epic_id_info)
-
-    global registration_message_channel
-    registration_channel = self.client.get_channel(registration_message_channel)
-
-    await registration_channel.purge(limit=10)
-    registration_message=discord.Embed(title="**Link Account**", description="Press the __Register__ button down below to begin the verification process.The bot will send instructions on how to link your account via DMs. Ensure your DM is open.\n\nNote: You will need to provide the bot with your **Epic Account ID**.", color=0xfec016)
-    registration_message.set_footer(text="Made ❤ by sarwin. (This is an early version. Expect errors.)")
-    await registration_channel.send(embed=registration_message, view=view)
-'''
 
 def setup(client):
     client.add_cog(Registration(client))
