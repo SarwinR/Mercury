@@ -9,6 +9,7 @@ intent = discord.Intents.default()
 intent.members = True
 client = commands.Bot(command_prefix="-", intents=intent)
 
+#test
 
 @client.event
 async def on_ready():
